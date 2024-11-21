@@ -1,5 +1,3 @@
-
-
 // import React, { useEffect, useState, useRef } from "react";
 // import { Client } from "@stomp/stompjs";
 // import SockJS from "sockjs-client";
@@ -9,7 +7,7 @@
 //     const [connected, setConnected] = useState(false);
 //     const [serialNumber, setSerialNumber] = useState("");
 //     const [imeiNumber, setImeiNumber] = useState("");
-//     const stompClientRef = useRef(null); // Use a ref to store the stompClient instance
+//     const stompClientRef = useRef(null);
 
 //     useEffect(() => {
 //         const socket = new SockJS("http://127.0.0.1:9595/api/push/register"); // Replace with your server endpoint
@@ -22,9 +20,13 @@
 
 //                 // Subscribe to user-specific messages
 //                 stompClient.subscribe("/user/queue/messages", (message) => {
-//                     const parsedMessage = JSON.parse(message.body);
-//                     setMessages((prevMessages) => [...prevMessages, parsedMessage]);
-//                     console.log("Received message:", parsedMessage);
+//                     try {
+//                         const parsedMessage = JSON.parse(message.body);
+//                         setMessages((prevMessages) => [...prevMessages, parsedMessage]);
+//                         console.log("Received message:", parsedMessage);
+//                     } catch (error) {
+//                         console.error("Error parsing message:", error);
+//                     }
 //                 });
 //             },
 //             onStompError: (frame) => {
@@ -36,9 +38,8 @@
 //         });
 
 //         stompClient.activate();
-//         stompClientRef.current = stompClient; // Store the client instance in the ref
+//         stompClientRef.current = stompClient;
 
-//         // Clean up the WebSocket connection on component unmount
 //         return () => {
 //             if (stompClient.active) {
 //                 stompClient.deactivate();
@@ -53,7 +54,6 @@
 //                 imeiNumber,
 //             };
 
-//             // Send message to /app/register endpoint
 //             stompClientRef.current.publish({
 //                 destination: "/app/register",
 //                 body: JSON.stringify(registerRequestBean),
@@ -93,7 +93,12 @@
 //                 <h2>Received Messages:</h2>
 //                 <ul>
 //                     {messages.map((message, index) => (
-//                         <li key={index}>{JSON.stringify(message)}</li>
+//                         <li key={index}>
+//                             <strong>Operation Code:</strong> {message.operationCode || "N/A"}
+//                             <br />
+//                             <strong>Params:</strong>{" "}
+//                             {message.params ? JSON.stringify(message.params) : "N/A"}
+//                         </li>
 //                     ))}
 //                 </ul>
 //             </div>
@@ -102,6 +107,7 @@
 // };
 
 // export default WebSocketComponent;
+
 
 import React, { useEffect, useState, useRef } from "react";
 import { Client } from "@stomp/stompjs";
@@ -112,10 +118,16 @@ const WebSocketComponent = () => {
     const [connected, setConnected] = useState(false);
     const [serialNumber, setSerialNumber] = useState("");
     const [imeiNumber, setImeiNumber] = useState("");
+    const [operationCode, setOperationCode] = useState("");
+    const [status, setStatus] = useState("");
+    const [params, setParams] = useState({});
+    const [paramKey, setParamKey] = useState("");
+    const [paramValue, setParamValue] = useState("");
     const stompClientRef = useRef(null);
 
     useEffect(() => {
-        const socket = new SockJS("http://127.0.0.1:9595/api/push/register"); // Replace with your server endpoint
+        // const socket = new SockJS("http://127.0.0.1:9595/api/push/register"); 
+        const socket = new SockJS("http://127.0.0.1:9595/api/push/echo"); 
         const stompClient = new Client({
             webSocketFactory: () => socket,
             debug: (str) => console.log(str),
@@ -154,19 +166,33 @@ const WebSocketComponent = () => {
 
     const sendRegisterRequest = () => {
         if (connected && stompClientRef.current) {
-            const registerRequestBean = {
+            const pushConfirmBean = {
                 serialNumber,
                 imeiNumber,
+                operationCode,
+                status,
+                params,
             };
 
             stompClientRef.current.publish({
-                destination: "/app/register",
-                body: JSON.stringify(registerRequestBean),
+                destination: "/app/echo",
+                body: JSON.stringify(pushConfirmBean),
             });
 
-            console.log("Sent register request:", registerRequestBean);
+            console.log("Sent request:", pushConfirmBean);
         } else {
             console.warn("WebSocket is not connected!");
+        }
+    };
+
+    const addParam = () => {
+        if (paramKey && paramValue) {
+            setParams((prevParams) => ({
+                ...prevParams,
+                [paramKey]: paramValue,
+            }));
+            setParamKey("");
+            setParamValue("");
         }
     };
 
@@ -193,13 +219,63 @@ const WebSocketComponent = () => {
                     />
                 </label>
             </div>
+            <div>
+                <label>
+                    Operation Code:
+                    <input
+                        type="text"
+                        value={operationCode}
+                        onChange={(e) => setOperationCode(e.target.value)}
+                    />
+                </label>
+            </div>
+            <div>
+                <label>
+                    Status:
+                    <input
+                        type="text"
+                        value={status}
+                        onChange={(e) => setStatus(e.target.value)}
+                    />
+                </label>
+            </div>
+            <div>
+                <h3>Add Params:</h3>
+                <input
+                    type="text"
+                    placeholder="Key"
+                    value={paramKey}
+                    onChange={(e) => setParamKey(e.target.value)}
+                />
+                <input
+                    type="text"
+                    placeholder="Value"
+                    value={paramValue}
+                    onChange={(e) => setParamValue(e.target.value)}
+                />
+                <button onClick={addParam}>Add Param</button>
+                <div>
+                    <h4>Current Params:</h4>
+                    <ul>
+                        {Object.entries(params).map(([key, value], index) => (
+                            <li key={index}>
+                                {key}: {value}
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            </div>
             <button onClick={sendRegisterRequest}>Send Register Request</button>
             <div>
                 <h2>Received Messages:</h2>
                 <ul>
                     {messages.map((message, index) => (
                         <li key={index}>
+                            <strong>Serial Number:</strong> {message.serialNumber || "N/A"}
+                            <br />
                             <strong>Operation Code:</strong> {message.operationCode || "N/A"}
+                            <br />
+                            <strong>Status:</strong> {message.status || "N/A"}
                             <br />
                             <strong>Params:</strong>{" "}
                             {message.params ? JSON.stringify(message.params) : "N/A"}
